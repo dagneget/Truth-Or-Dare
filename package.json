@@ -8,5 +8,10 @@
     "build": "npm install --prefix ./truth-dare-web && npm run build --prefix ./truth-dare-web",
     "start": "npm run start --prefix ./truth-dare-web",
     "lint": "npm run lint --prefix ./truth-dare-web"
+  },
+  "dependencies": {
+    "next": "16.2.4",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
   }
 }
