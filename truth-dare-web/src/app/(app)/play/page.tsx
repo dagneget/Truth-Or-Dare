@@ -435,13 +435,15 @@ export default function PlayPage() {
                   </button>
                 </div>
 
-                {selectedPlayerId === selfId ? (
-                  <div className="mt-6 text-center text-sm text-white/50 italic">
+                {isMyTurn && (
+                  <div className="mt-6 text-center text-sm text-white/50 italic animate-pulse">
                     Waiting for the jury's verdict...
                   </div>
-                ) : (
+                )}
+                
+                {!isMyTurn && (
                   <div className="mt-6 space-y-4">
-                    {players.find(p => p.id === selfId)?.isHost ? (
+                    {isHost ? (
                       <button
                         onClick={() => resolveVoting()}
                         className="w-full py-4 rounded-xl bg-gradient-to-r from-[var(--neon-pink)] to-[var(--neon-purple)] font-bold uppercase tracking-widest shadow-[0_0_20px_rgba(255,46,144,0.3)]"
@@ -454,12 +456,6 @@ export default function PlayPage() {
                       </div>
                     )}
                   </div>
-                )}
-                
-                {isMyTurn && (
-                  <p className="text-center text-xs text-[var(--muted)] animate-pulse">
-                    Waiting for the jury&apos;s verdict...
-                  </p>
                 )}
               </div>
             )}

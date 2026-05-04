@@ -42,14 +42,14 @@ export function FloatingReactions() {
               key={r.id}
               initial={{ 
                 y: "110vh", 
-                x: `${startX}vw`, 
+                x: `${r.x ?? 50}vw`, 
                 scale: 0.5, 
                 opacity: 0,
                 rotate: rotation
               }}
               animate={{ 
                 y: "-10vh", 
-                x: `${startX + (Math.random() * 20 - 10)}vw`,
+                x: `${(r.x ?? 50) + (Math.random() * 20 - 10)}vw`,
                 scale: [0.5, 1.5, 1], 
                 opacity: [0, 1, 1, 0],
                 rotate: rotation + (Math.random() * 60 - 30)
