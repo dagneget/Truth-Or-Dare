@@ -78,7 +78,7 @@ type GameState = {
   votes: Record<string, "pass" | "fail">;
   reactions: { id: string; emoji: string; senderId: string; timestamp: number }[];
 
-  setSelfId: (id: string) => void;
+  setSelfId: (id?: string) => void;
   setDisplayName: (name: string) => void;
   setVote: (vote: "pass" | "fail") => void;
   startVoting: () => void;
