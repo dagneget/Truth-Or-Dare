@@ -1,5 +1,0 @@
-{
-  "buildCommand": "npm install --prefix ./truth-dare-web && npm run build --prefix ./truth-dare-web",
-  "outputDirectory": "truth-dare-web/.next",
-  "framework": "nextjs"
-}
