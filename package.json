@@ -3,12 +3,10 @@
   "private": true,
   "description": "Forward scripts into the Next.js app in truth-dare-web/",
   "scripts": {
-    "dev": "npm --prefix ./truth-dare-web run dev",
-    "build": "npm --prefix ./truth-dare-web run build",
-    "start": "npm --prefix ./truth-dare-web run start",
-    "lint": "npm --prefix ./truth-dare-web run lint",
-    "install:web": "npm install --prefix ./truth-dare-web",
-    "clean": "npm --prefix ./truth-dare-web run clean",
-    "fresh": "npm --prefix ./truth-dare-web run fresh"
+    "install": "npm install --prefix ./truth-dare-web",
+    "dev": "npm run dev --prefix ./truth-dare-web",
+    "build": "npm install --prefix ./truth-dare-web && npm run build --prefix ./truth-dare-web",
+    "start": "npm run start --prefix ./truth-dare-web",
+    "lint": "npm run lint --prefix ./truth-dare-web"
   }
 }
