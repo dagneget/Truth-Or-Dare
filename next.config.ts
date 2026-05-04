@@ -10,11 +10,9 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
   /* config options here */
-  allowedDevOrigins: ["192.168.56.1:3000", "10.18.51.42:3000", "192.168.137.1:3000", "localhost:3000"],
   eslint: {
     ignoreDuringBuilds: true,
   },
-  turbopack: {},
 };
 
 
