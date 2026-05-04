@@ -1,7 +1,6 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import { randomCode } from "@/lib/utils";
 import {
   DEFAULT_DARES,
@@ -9,7 +8,7 @@ import {
   DEFAULT_PUNISHMENTS,
   type PromptCategory,
 } from "@/data/defaultPrompts";
-import { updateGameState, sendBroadcastReaction, sendStateBroadcast, subscribeBroadcast } from "@/lib/supabase/rooms";
+import { updateGameState, sendBroadcastReaction, sendStateBroadcast } from "@/lib/supabase/rooms";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 
 export type Player = {
@@ -175,7 +174,7 @@ async function broadcastState(state: GameState, highFrequency = false) {
   await updateGameState(state.roomCode, payload);
 }
 
-export const useGameStore = create<GameState>()((set: any, get: any) => ({
+export const useGameStore = create<GameState>()((set, get) => ({
   selfId: "me",
   displayName: "Player",
   roomCode: null,
@@ -234,13 +233,10 @@ export const useGameStore = create<GameState>()((set: any, get: any) => ({
   },
   receiveReaction: (reaction: any) => set((s: GameState) => ({ reactions: [...s.reactions.slice(-19), reaction] })),
   receiveChatMessage: (msg: any) => {
-    // This will be used if we want to sync chat state in the store
-    // For now, most chat components fetch from Supabase, 
-    // but we can trigger a refresh or add to local list.
+    // Chat logic can go here
   },
 
   setSelfId: (id?: string) => {
-    // If no ID provided, try to find one in localStorage or generate a guest ID
     let finalId = id;
     if (!finalId && typeof window !== 'undefined') {
       finalId = localStorage.getItem('temp_uid') ?? undefined;
@@ -267,7 +263,7 @@ export const useGameStore = create<GameState>()((set: any, get: any) => ({
   },
 
   resolveVoting: () => {
-    const { votes, players } = get();
+    const { votes } = get();
     const voteList = Object.values(votes);
     const passes = voteList.filter((v) => v === "pass").length;
     const fails = voteList.filter((v) => v === "fail").length;
@@ -368,8 +364,6 @@ export const useGameStore = create<GameState>()((set: any, get: any) => ({
     const winnerIndex = Math.floor(Math.random() * players.length);
 
     const currentRotation = get().bottleRotation;
-    // Calculate the next rotation that ends at (winnerIndex * segment)
-    // and adds at least extraTurns full spins.
     const baseRotation = Math.ceil(currentRotation / 360) * 360;
     const newRotation = baseRotation + (extraTurns * 360) + (winnerIndex * segment);
 
@@ -386,13 +380,13 @@ export const useGameStore = create<GameState>()((set: any, get: any) => ({
     window.setTimeout(() => {
       set({
         phase: "choose",
-        timerSeconds: 10, // 10 seconds to pick Truth or Dare
+        timerSeconds: 10,
       });
       void broadcastState(get());
     }, 3200);
   },
 
-  pickChallenge: (type: "truth" | "dare" | "random" | "alternating") => {
+  pickChallenge: (type?: "truth" | "dare" | "random" | "alternating") => {
     const { customTruths, customDares, roomCustomPrompts, lastChallengeType, timerEnabled, dareTimeLimit, vibe } = get();
 
     let chosenType: "truth" | "dare";
@@ -406,11 +400,9 @@ export const useGameStore = create<GameState>()((set: any, get: any) => ({
 
     const allDefaults = chosenType === "truth" ? DEFAULT_TRUTHS : DEFAULT_DARES;
 
-    // Filter by vibe if selected
     let filteredDefaults = allDefaults;
     if (vibe && vibe !== "classic") {
       filteredDefaults = allDefaults.filter((d: any) => d.category === vibe);
-      // Fallback if vibe is too niche/empty
       if (filteredDefaults.length === 0) filteredDefaults = allDefaults;
     }
 
@@ -464,7 +456,7 @@ export const useGameStore = create<GameState>()((set: any, get: any) => ({
         },
         players: s.players.map((p: Player) =>
           p.id === s.selectedPlayerId
-            ? { ...p, score: p.score + (ct === "truth" ? 10 : 20) } // Truths 10pts, Dares 20pts
+            ? { ...p, score: p.score + (ct === "truth" ? 10 : 20) }
             : p
         ),
       };
@@ -542,7 +534,6 @@ export const useGameStore = create<GameState>()((set: any, get: any) => ({
 
       const nextSec = s.timerSeconds - 1;
 
-      // Auto-pick if time runs out in choice phase
       if (nextSec === 0 && s.phase === "choose") {
         setTimeout(() => get().pickChallenge("random"), 0);
       }
@@ -563,10 +554,7 @@ export const useGameStore = create<GameState>()((set: any, get: any) => ({
     if (remoteState.phase !== undefined && remoteState.phase !== current.phase) {
       updates.phase = remoteState.phase as GamePhase;
     }
-    if (
-      remoteState.bottleRotation !== undefined &&
-      remoteState.bottleRotation !== current.bottleRotation
-    ) {
+    if (remoteState.bottleRotation !== undefined && remoteState.bottleRotation !== current.bottleRotation) {
       updates.bottleRotation = remoteState.bottleRotation;
     }
     if (remoteState.selectedPlayerId !== undefined && remoteState.selectedPlayerId !== current.selectedPlayerId) {
@@ -596,18 +584,13 @@ export const useGameStore = create<GameState>()((set: any, get: any) => ({
     if (remoteState.votes !== undefined && JSON.stringify(remoteState.votes) !== JSON.stringify(current.votes)) {
       updates.votes = remoteState.votes;
     }
-    if (remoteState.currentPrompt !== undefined && JSON.stringify(remoteState.currentPrompt) !== JSON.stringify(current.currentPrompt)) {
-      updates.currentPrompt = remoteState.currentPrompt;
-    }
-    if (remoteState.challengeType !== undefined && remoteState.challengeType !== current.challengeType) {
-      updates.challengeType = remoteState.challengeType as "truth" | "dare";
-    }
-    if (remoteState.timerSeconds !== undefined && remoteState.timerSeconds !== current.timerSeconds) {
-      updates.timerSeconds = remoteState.timerSeconds;
-    }
 
     if (Object.keys(updates).length > 0) {
       set(updates);
     }
   },
+  setGameStarted: (started: boolean) => set({ gameStarted: started }),
+  receiveReaction: (reaction: { id: string, emoji: string, senderId?: string, x?: number }) => set((s: GameState) => ({ reactions: [...s.reactions.slice(-19), reaction] })),
+  receiveChatMessage: (msg: any) => {},
+  broadcastChannel: null,
 }));
