@@ -589,8 +589,4 @@ export const useGameStore = create<GameState>()((set, get) => ({
       set(updates);
     }
   },
-  setGameStarted: (started: boolean) => set({ gameStarted: started }),
-  receiveReaction: (reaction: { id: string, emoji: string, senderId?: string, x?: number }) => set((s: GameState) => ({ reactions: [...s.reactions.slice(-19), reaction] })),
-  receiveChatMessage: (msg: any) => {},
-  broadcastChannel: null,
 }));
