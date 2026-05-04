@@ -1,0 +1,45 @@
+{
+  "name": "truth-dare-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node ./node_modules/next/dist/bin/next dev",
+    "build": "node ./node_modules/next/dist/bin/next build",
+    "start": "node ./node_modules/next/dist/bin/next start",
+    "lint": "eslint",
+    "clean": "rimraf .next",
+    "clean:all": "rimraf .next node_modules",
+    "fresh": "npm run clean:all && npm install"
+  },
+  "dependencies": {
+    "@ducanh2912/next-pwa": "^10.2.9",
+    "@supabase/supabase-js": "^2.105.1",
+    "canvas-confetti": "^1.9.4",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "firebase": "^11.6.0",
+    "framer-motion": "^12.38.0",
+    "howler": "^2.2.4",
+    "lucide-react": "^0.487.0",
+    "next": "16.2.4",
+    "qrcode.react": "^4.2.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "tailwind-merge": "^2.6.0",
+    "use-sound": "^5.0.0",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/howler": "^2.2.12",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "rimraf": "^6.0.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
