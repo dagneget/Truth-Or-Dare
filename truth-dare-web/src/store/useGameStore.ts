@@ -76,7 +76,7 @@ type GameState = {
   chatUnread: boolean;
   dareCamActive: boolean;
   votes: Record<string, "pass" | "fail">;
-  reactions: { id: string; emoji: string; senderId: string; timestamp: number }[];
+  reactions: { id: string; emoji: string; senderId?: string; x?: number }[];
 
   setSelfId: (id?: string) => void;
   setDisplayName: (name: string) => void;
@@ -120,7 +120,7 @@ type GameState = {
   syncFromRemote: (state: Partial<GameState>) => void;
   setDareCamActive: (active: boolean) => void;
   setGameStarted: (started: boolean) => void;
-  receiveReaction: (reaction: { id: string, emoji: string, x: number }) => void;
+  receiveReaction: (reaction: { id: string, emoji: string, senderId?: string, x?: number }) => void;
   receiveChatMessage: (msg: { uid: string, name: string, content: string, created_at: string }) => void;
   broadcastChannel: any;
   setBroadcastChannel: (channel: any) => void;
@@ -216,7 +216,23 @@ export const useGameStore = create<GameState>()((set, get) => ({
   broadcastChannel: null,
   setBroadcastChannel: (channel) => set({ broadcastChannel: channel }),
   setGameStarted: (started) => set({ gameStarted: started }),
-  receiveReaction: (reaction) => set((s) => ({ reactions: [...s.reactions.slice(-20), reaction] })),
+
+  sendReaction: (emoji) => {
+    const { selfId, broadcastChannel } = get();
+    const reaction = { 
+      id: Math.random().toString(), 
+      emoji, 
+      senderId: selfId,
+      x: 20 + Math.random() * 60 
+    };
+
+    set((s) => ({ reactions: [...s.reactions.slice(-19), reaction] }));
+    
+    if (broadcastChannel) {
+      sendBroadcastReaction(broadcastChannel, reaction);
+    }
+  },
+  receiveReaction: (reaction) => set((s) => ({ reactions: [...s.reactions.slice(-19), reaction] })),
   receiveChatMessage: (msg) => {
     // This will be used if we want to sync chat state in the store
     // For now, most chat components fetch from Supabase, 
@@ -227,7 +243,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
     // If no ID provided, try to find one in localStorage or generate a guest ID
     let finalId = id;
     if (!finalId && typeof window !== 'undefined') {
-      finalId = localStorage.getItem('temp_uid');
+      finalId = localStorage.getItem('temp_uid') ?? undefined;
       if (!finalId) {
         finalId = 'guest_' + Math.random().toString(36).substring(2, 15);
         localStorage.setItem('temp_uid', finalId);
@@ -241,27 +257,6 @@ export const useGameStore = create<GameState>()((set, get) => ({
     const { selfId, votes } = get();
     set({ votes: { ...votes, [selfId]: vote } });
     void broadcastState(get());
-  },
-
-  sendReaction: (emoji) => {
-    const { selfId, reactions } = get();
-    const newReaction = {
-      id: Math.random().toString(36).substring(7),
-      emoji,
-      senderId: selfId,
-      timestamp: Date.now(),
-    };
-    // Keep only last 20 reactions to avoid bloat
-    const updated = [newReaction, ...reactions.slice(0, 19)];
-    set({ reactions: updated });
-    // Note: We'll use broadcast channel for this in components, 
-    // but we can also sync it via DB if needed.
-    void broadcastState(get());
-
-    // Auto-clear after some time locally (the remote will sync eventually)
-    setTimeout(() => {
-      set((s) => ({ reactions: s.reactions.filter((r) => r.id !== newReaction.id) }));
-    }, 4000);
   },
 
   clearReactions: () => set({ reactions: [] }),
@@ -591,14 +586,6 @@ export const useGameStore = create<GameState>()((set, get) => ({
     }
     if (remoteState.dareCamActive !== undefined && remoteState.dareCamActive !== current.dareCamActive) {
       updates.dareCamActive = remoteState.dareCamActive;
-    }
-    if (remoteState.votes !== undefined && JSON.stringify(remoteState.votes) !== JSON.stringify(current.votes)) {
-      updates.votes = remoteState.votes;
-    }
-    if (remoteState.reactions !== undefined && JSON.stringify(remoteState.reactions) !== JSON.stringify(current.reactions)) {
-      // Filter out old reactions when syncing
-      const now = Date.now();
-      updates.reactions = remoteState.reactions.filter(r => now - r.timestamp < 5000);
     }
     if (remoteState.players !== undefined && JSON.stringify(remoteState.players) !== JSON.stringify(current.players)) {
       updates.players = remoteState.players;
