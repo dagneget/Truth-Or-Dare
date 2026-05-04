@@ -175,7 +175,7 @@ async function broadcastState(state: GameState, highFrequency = false) {
   await updateGameState(state.roomCode, payload);
 }
 
-export const useGameStore = create<GameState>()((set, get) => ({
+export const useGameStore = create<GameState>()((set: any, get: any) => ({
   selfId: "me",
   displayName: "Player",
   roomCode: null,
@@ -214,10 +214,10 @@ export const useGameStore = create<GameState>()((set, get) => ({
   votes: {},
   reactions: [],
   broadcastChannel: null,
-  setBroadcastChannel: (channel) => set({ broadcastChannel: channel }),
-  setGameStarted: (started) => set({ gameStarted: started }),
+  setBroadcastChannel: (channel: any) => set({ broadcastChannel: channel }),
+  setGameStarted: (started: boolean) => set({ gameStarted: started }),
 
-  sendReaction: (emoji) => {
+  sendReaction: (emoji: string) => {
     const { selfId, broadcastChannel } = get();
     const reaction = { 
       id: Math.random().toString(), 
@@ -226,20 +226,20 @@ export const useGameStore = create<GameState>()((set, get) => ({
       x: 20 + Math.random() * 60 
     };
 
-    set((s) => ({ reactions: [...s.reactions.slice(-19), reaction] }));
+    set((s: GameState) => ({ reactions: [...s.reactions.slice(-19), reaction] }));
     
     if (broadcastChannel) {
       sendBroadcastReaction(broadcastChannel, reaction);
     }
   },
-  receiveReaction: (reaction) => set((s) => ({ reactions: [...s.reactions.slice(-19), reaction] })),
-  receiveChatMessage: (msg) => {
+  receiveReaction: (reaction: any) => set((s: GameState) => ({ reactions: [...s.reactions.slice(-19), reaction] })),
+  receiveChatMessage: (msg: any) => {
     // This will be used if we want to sync chat state in the store
     // For now, most chat components fetch from Supabase, 
     // but we can trigger a refresh or add to local list.
   },
 
-  setSelfId: (id) => {
+  setSelfId: (id?: string) => {
     // If no ID provided, try to find one in localStorage or generate a guest ID
     let finalId = id;
     if (!finalId && typeof window !== 'undefined') {
@@ -251,9 +251,9 @@ export const useGameStore = create<GameState>()((set, get) => ({
     }
     set({ selfId: finalId || "me" });
   },
-  setDisplayName: (name) => set({ displayName: name.trim() || "Player" }),
+  setDisplayName: (name: string) => set({ displayName: name.trim() || "Player" }),
 
-  setVote: (vote) => {
+  setVote: (vote: "pass" | "fail") => {
     const { selfId, votes } = get();
     set({ votes: { ...votes, [selfId]: vote } });
     void broadcastState(get());
@@ -279,8 +279,8 @@ export const useGameStore = create<GameState>()((set, get) => ({
     }
   },
 
-  setRoomMeta: (meta) =>
-    set((s) => ({
+  setRoomMeta: (meta: any) =>
+    set((s: GameState) => ({
       roomCode: meta.roomCode,
       roomName: meta.roomName ?? s.roomName,
       maxPlayers: meta.maxPlayers ?? s.maxPlayers,
@@ -289,9 +289,9 @@ export const useGameStore = create<GameState>()((set, get) => ({
       roomCustomPrompts: meta.customPrompts ?? s.roomCustomPrompts,
     })),
 
-  setPlayers: (players) => set({ players }),
+  setPlayers: (players: Player[]) => set({ players }),
 
-  setRoomFromCreate: (name, maxPlayers, vibe, selectionMode) => {
+  setRoomFromCreate: (name: string, maxPlayers: number, vibe: string | null, selectionMode: "choice" | "random" | "alternating") => {
     const code = randomCode(5);
     const { displayName: host, avatarEmoji, avatarColor } = get();
     set({
@@ -309,7 +309,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
     });
   },
 
-  joinRoom: (code) => {
+  joinRoom: (code: string) => {
     const clean = code.replace(/\s/g, "").toUpperCase().slice(0, 8);
     const { displayName: name, avatarEmoji, avatarColor } = get();
     set({
@@ -337,19 +337,19 @@ export const useGameStore = create<GameState>()((set, get) => ({
 
   toggleReady: () => {
     const me = get().selfId;
-    set((s) => ({
-      players: s.players.map((p) => (p.id === me ? { ...p, ready: !p.ready } : p)),
+    set((s: GameState) => ({
+      players: s.players.map((p: Player) => (p.id === me ? { ...p, ready: !p.ready } : p)),
     }));
   },
 
   startGame: () => {
     const { players } = get();
     if (!players.length) return;
-    const me = players.find((p) => p.id === get().selfId);
+    const me = players.find((p: Player) => p.id === get().selfId);
     if (!me?.isHost) return;
-    const allReady = players.every((p) => p.ready);
+    const allReady = players.every((p: Player) => p.ready);
     if (!allReady) return;
-    set((s) => ({
+    set((s: GameState) => ({
       gameStarted: true,
       phase: "idle",
       selectedPlayerId: null,
@@ -392,7 +392,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
     }, 3200);
   },
 
-  pickChallenge: (type) => {
+  pickChallenge: (type: "truth" | "dare" | "random" | "alternating") => {
     const { customTruths, customDares, roomCustomPrompts, lastChallengeType, timerEnabled, dareTimeLimit, vibe } = get();
 
     let chosenType: "truth" | "dare";
@@ -409,18 +409,18 @@ export const useGameStore = create<GameState>()((set, get) => ({
     // Filter by vibe if selected
     let filteredDefaults = allDefaults;
     if (vibe && vibe !== "classic") {
-      filteredDefaults = allDefaults.filter(d => d.category === vibe);
+      filteredDefaults = allDefaults.filter((d: any) => d.category === vibe);
       // Fallback if vibe is too niche/empty
       if (filteredDefaults.length === 0) filteredDefaults = allDefaults;
     }
 
     const locals = chosenType === "truth" ? customTruths : customDares;
-    const rooms = roomCustomPrompts.filter((c) => c.type === chosenType);
+    const rooms = roomCustomPrompts.filter((c: any) => c.type === chosenType);
 
     const pool = [
-      ...filteredDefaults.map((t) => t.text),
-      ...locals.filter((c) => c.type === chosenType).map((c) => c.text),
-      ...rooms.map((c) => c.text),
+      ...filteredDefaults.map((t: any) => t.text),
+      ...locals.filter((c: any) => c.type === chosenType).map((c: any) => c.text),
+      ...rooms.map((c: any) => c.text),
     ];
 
     set({
@@ -443,7 +443,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
 
   completeChallenge: () => {
     const ct = get().challengeType;
-    set((s) => {
+    set((s: GameState) => {
       const isDare = ct === "dare";
       const newStreak = s.stats.currentStreak + 1;
       const newDareStreak = isDare ? (s.stats.daresCompleted + 1) : s.stats.daresCompleted;
@@ -462,7 +462,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
           currentStreak: newStreak,
           longestStreak: Math.max(s.stats.longestStreak, newStreak),
         },
-        players: s.players.map(p =>
+        players: s.players.map((p: Player) =>
           p.id === s.selectedPlayerId
             ? { ...p, score: p.score + (ct === "truth" ? 10 : 20) } // Truths 10pts, Dares 20pts
             : p
@@ -473,7 +473,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
   },
 
   refuseChallenge: () => {
-    set((s) => ({
+    set((s: GameState) => ({
       phase: "punishment" as const,
       punishmentText: pickRandom(DEFAULT_PUNISHMENTS),
       dareCamActive: false,
@@ -486,7 +486,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
     void broadcastState(get());
   },
 
-  setPunishment: (text) => {
+  setPunishment: (text: string) => {
     set({ punishmentText: text });
     void broadcastState(get());
   },
@@ -497,7 +497,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
   },
 
   confirmPunishmentDone: () => {
-    set((s) => ({
+    set((s: GameState) => ({
       phase: "idle" as const,
       punishmentText: null,
       challengeType: null,
@@ -511,31 +511,31 @@ export const useGameStore = create<GameState>()((set, get) => ({
     void broadcastState(get());
   },
 
-  addCustomPrompt: (p) => {
+  addCustomPrompt: (p: any) => {
     const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
     if (p.type === "truth") {
-      set((s) => ({ customTruths: [...s.customTruths, { ...p, id }] }));
+      set((s: GameState) => ({ customTruths: [...s.customTruths, { ...p, id }] }));
     } else {
-      set((s) => ({ customDares: [...s.customDares, { ...p, id }] }));
+      set((s: GameState) => ({ customDares: [...s.customDares, { ...p, id }] }));
     }
   },
 
-  removeCustomPrompt: (id, type) => {
+  removeCustomPrompt: (id: string, type: "truth" | "dare") => {
     if (type === "truth") {
-      set((s) => ({ customTruths: s.customTruths.filter((c) => c.id !== id) }));
+      set((s: GameState) => ({ customTruths: s.customTruths.filter((c: CustomPrompt) => c.id !== id) }));
     } else {
-      set((s) => ({ customDares: s.customDares.filter((c) => c.id !== id) }));
+      set((s: GameState) => ({ customDares: s.customDares.filter((c: CustomPrompt) => c.id !== id) }));
     }
   },
 
-  setTimerEnabled: (v) => set({ timerEnabled: v }),
-  setDareTimeLimit: (s) => set({ dareTimeLimit: s }),
-  setAvatarEmoji: (emoji) => set({ avatarEmoji: emoji }),
-  setAvatarColor: (color) => set({ avatarColor: color }),
-  setDareCamActive: (active) => set({ dareCamActive: active }),
+  setTimerEnabled: (v: boolean) => set({ timerEnabled: v }),
+  setDareTimeLimit: (s: number) => set({ dareTimeLimit: s }),
+  setAvatarEmoji: (emoji: string) => set({ avatarEmoji: emoji }),
+  setAvatarColor: (color: string) => set({ avatarColor: color }),
+  setDareCamActive: (active: boolean) => set({ dareCamActive: active }),
 
   tickTimer: () =>
-    set((s) => {
+    set((s: GameState) => {
       const isCounting = (s.phase === "revealed" && s.challengeType === "dare") || s.phase === "choose";
       if (!isCounting || s.timerSeconds <= 0)
         return s;
@@ -551,12 +551,12 @@ export const useGameStore = create<GameState>()((set, get) => ({
     }),
 
   resetTimer: () =>
-    set((s) => ({
+    set((s: GameState) => ({
       timerSeconds: s.timerEnabled ? s.dareTimeLimit : 0,
     })),
 
-  setChatUnread: (v) => set({ chatUnread: v }),
-  syncFromRemote: (remoteState) => {
+  setChatUnread: (v: boolean) => set({ chatUnread: v }),
+  syncFromRemote: (remoteState: Partial<GameState>) => {
     const current = get();
     const updates: Partial<GameState> = {};
 
