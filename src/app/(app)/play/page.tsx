@@ -58,6 +58,7 @@ export default function PlayPage() {
   const setVote = useGameStore((s) => s.setVote);
   const startVoting = useGameStore((s) => s.startVoting);
   const resolveVoting = useGameStore((s) => s.resolveVoting);
+  const confirmPrompt = useGameStore((s) => s.confirmPrompt);
 
   const [truthAnswer, setTruthAnswer] = useState("");
   const [customPrompt, setCustomPrompt] = useState("");
@@ -334,6 +335,55 @@ export default function PlayPage() {
         </div>
       )}
 
+      {/* Ask Phase */}
+      {phase === "ask" && (
+        <div className="mt-8 space-y-4">
+          {isCurrentTurn ? (
+            <div className="space-y-4 rounded-3xl border border-[var(--neon-cyan)]/30 bg-[#121212]/80 p-6 shadow-[0_0_30px_rgba(0,251,251,0.2)] backdrop-blur-md">
+              <h3 className="text-center font-[family-name:var(--font-space-grotesk)] text-xl font-bold text-white uppercase tracking-wider">
+                Ask a {challengeType}!
+              </h3>
+              <p className="text-center text-sm text-[var(--muted)]">
+                {selectedName} chose {challengeType}. What is your challenge for them?
+              </p>
+              
+              <textarea
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                placeholder={`Type your custom ${challengeType} here...`}
+                className="w-full rounded-2xl border-2 border-white/5 bg-white/[0.03] p-4 text-sm text-white transition-colors focus:border-[var(--neon-cyan)]/50 focus:outline-none"
+                rows={3}
+              />
+              
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => confirmPrompt()}
+                  className="flex-1 rounded-xl border border-[var(--neon-cyan)]/50 py-3 text-xs font-bold uppercase tracking-wider text-[var(--neon-cyan)] hover:bg-[var(--neon-cyan)]/10"
+                >
+                  Generate Random
+                </button>
+                <button
+                  type="button"
+                  disabled={!customPrompt.trim()}
+                  onClick={() => {
+                    confirmPrompt(customPrompt);
+                    setCustomPrompt("");
+                  }}
+                  className="flex-1 rounded-xl bg-[var(--neon-cyan)] py-3 text-xs font-bold uppercase tracking-wider text-black shadow-[0_0_15px_rgba(0,251,251,0.5)] disabled:opacity-40"
+                >
+                  Ask
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-center text-sm italic text-[var(--muted)] animate-pulse">
+              Waiting for {players[currentTurnIndex]?.name} to ask a question...
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Waiting message for non-active players */}
       {showTruthDare && !canAct && (
         <p className="mt-3 text-center text-xs text-[var(--muted)] animate-pulse">
@@ -486,6 +536,14 @@ export default function PlayPage() {
                       {challengeType === "truth" ? "Truth" : "Dare"} Challenge
                     </div>
                     <p className="mt-2 text-lg font-bold text-white">{currentPrompt}</p>
+                    {challengeType === "truth" && submittedAnswers[selectedPlayerId || ""] && (
+                      <div className="mt-3 border-t border-[var(--neon-pink)]/20 pt-3">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--neon-cyan)]">
+                          Answer
+                        </div>
+                        <p className="mt-1 text-md italic text-[var(--neon-cyan-bright)]">{submittedAnswers[selectedPlayerId || ""]}</p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -589,66 +647,77 @@ export default function PlayPage() {
               <p className="text-center text-lg font-bold leading-snug text-white">{punishmentText}</p>
             </div>
 
-            <p className="mt-6 text-center text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">
-              Select or write punishment:
-            </p>
-            
-            <textarea
-              value={customPunishment}
-              onChange={(e) => setCustomPunishment(e.target.value)}
-              placeholder="Write your own punishment..."
-              className="mt-3 w-full rounded-xl border border-[#ffb3ab]/30 bg-black/50 p-3 text-sm text-white placeholder:text-white/30"
-              rows={2}
-            />
-            
-            {customPunishment.trim() && (
-              <button
-                type="button"
-                onClick={() => {
-                  setPunishment(customPunishment);
-                  setCustomPunishment("");
-                }}
-                className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#ffb3ab] py-3 text-xs font-bold uppercase tracking-wider text-[#2a1010]"
-              >
-                Use This Punishment
-              </button>
+            {isCurrentTurn ? (
+              <>
+                <p className="mt-6 text-center text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">
+                  Select or write punishment:
+                </p>
+                
+                <textarea
+                  value={customPunishment}
+                  onChange={(e) => setCustomPunishment(e.target.value)}
+                  placeholder="Write your own punishment..."
+                  className="mt-3 w-full rounded-xl border border-[#ffb3ab]/30 bg-black/50 p-3 text-sm text-white placeholder:text-white/30"
+                  rows={2}
+                />
+                
+                {customPunishment.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPunishment(customPunishment);
+                      setCustomPunishment("");
+                    }}
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#ffb3ab] py-3 text-xs font-bold uppercase tracking-wider text-[#2a1010]"
+                  >
+                    Use This Punishment
+                  </button>
+                )}
+                
+                <p className="mt-4 text-center text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">
+                  Or choose from these:
+                </p>
+                <ul className="mt-3 flex flex-col gap-2">
+                  {DEFAULT_PUNISHMENTS.filter((p) => p !== punishmentText)
+                    .slice(0, 2)
+                    .map((p) => (
+                      <li key={p}>
+                        <button
+                          type="button"
+                          onClick={() => setPunishment(p)}
+                          className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white/90"
+                        >
+                          {p}
+                          <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" />
+                        </button>
+                      </li>
+                    ))}
+                </ul>
+
+                <button
+                  type="button"
+                  onClick={randomPunishment}
+                  className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#ffb3ab]/60 py-3.5 font-[family-name:var(--font-space-grotesk)] text-xs font-bold uppercase tracking-wider text-[#ffb3ab]"
+                >
+                  <Shuffle className="h-4 w-4" />
+                  Generate random punishment
+                </button>
+              </>
+            ) : (
+              <p className="mt-8 text-center text-sm italic text-[#ffb3ab]/70 animate-pulse">
+                Waiting for {players[currentTurnIndex]?.name} to assign a punishment...
+              </p>
             )}
             
-            <p className="mt-4 text-center text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">
-              Or choose from these:
-            </p>
-            <ul className="mt-3 flex flex-col gap-2">
-              {DEFAULT_PUNISHMENTS.filter((p) => p !== punishmentText)
-                .slice(0, 2)
-                .map((p) => (
-                  <li key={p}>
-                    <button
-                      type="button"
-                      onClick={() => setPunishment(p)}
-                      className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white/90"
-                    >
-                      {p}
-                      <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" />
-                    </button>
-                  </li>
-                ))}
-            </ul>
-
-            <button
-              type="button"
-              onClick={randomPunishment}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#ffb3ab]/60 py-3.5 font-[family-name:var(--font-space-grotesk)] text-xs font-bold uppercase tracking-wider text-[#ffb3ab]"
-            >
-              <Shuffle className="h-4 w-4" />
-              Generate random punishment
-            </button>
-            <button
-              type="button"
-              onClick={confirmPunishmentDone}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#ffb3ab] py-4 font-[family-name:var(--font-space-grotesk)] text-sm font-bold uppercase tracking-wider text-[#2a1010]"
-            >
-              <CircleCheck className="h-5 w-5" />I did it
-            </button>
+            {isMyTurn && (
+              <button
+                type="button"
+                onClick={confirmPunishmentDone}
+                className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#ffb3ab] py-4 font-[family-name:var(--font-space-grotesk)] text-sm font-bold uppercase tracking-wider text-[#2a1010]"
+              >
+                <CircleCheck className="h-5 w-5" />I did it
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

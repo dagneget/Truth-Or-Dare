@@ -46,18 +46,26 @@ export function usePushNotifications() {
       const registration = await navigator.serviceWorker.ready;
       registrationRef.current = registration;
 
+      if (!VAPID_PUBLIC_KEY) {
+        console.warn("VAPID public key not configured");
+        return null;
+      }
+
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as any,
       });
 
-      // Send the subscription to our backend with the player's ID
       const userId = useGameStore.getState().selfId;
-      await fetch("/api/push/subscribe", {
+      const res = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subscription, userId }),
       });
+      
+      if (!res.ok) {
+        console.error("Failed to save subscription");
+      }
 
       console.log("Push subscription successful:", subscription);
       return subscription;
@@ -65,7 +73,7 @@ export function usePushNotifications() {
       console.error("Push subscription error:", error);
       return null;
     }
-  }, [requestPermission]);
+  }, [requestPermission, isClient]);
 
   const unsubscribeFromPush = useCallback(async function unsubscribeFromPush(): Promise<boolean> {
     try {

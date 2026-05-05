@@ -32,6 +32,7 @@ type GamePhase =
   | "idle"
   | "spinning"
   | "choose"
+  | "ask"
   | "revealed"
   | "voting"
   | "punishment";
@@ -105,6 +106,7 @@ type GameState = {
   pickChallenge: (type?: "truth" | "dare" | "random" | "alternating", customText?: string) => void;
   pickTruth: () => void;
   pickDare: () => void;
+  confirmPrompt: (text?: string) => void;
   completeChallenge: () => void;
   refuseChallenge: () => void;
   setPunishment: (text: string) => void;
@@ -165,6 +167,7 @@ async function broadcastState(state: GameState, highFrequency = false) {
     currentPrompt: state.currentPrompt,
     timerSeconds: state.timerSeconds,
     punishmentText: state.punishmentText,
+    pendingAnswer: state.pendingAnswer,
     dareCamActive: state.dareCamActive,
     votes: state.votes,
     reactions: state.reactions,
@@ -437,7 +440,19 @@ export const useGameStore = create<GameState>()((set, get) => ({
       chosenType = Math.random() > 0.5 ? "truth" : "dare";
     }
 
-    // If custom text provided, use it directly
+    // If we are in "choose" phase and user picked truth/dare, go to "ask" phase so the spinner can ask
+    if (get().phase === "choose" && (type === "truth" || type === "dare") && !customText) {
+      set({
+        challengeType: chosenType,
+        phase: "ask",
+        lastChallengeType: chosenType,
+        timerSeconds: 0,
+      });
+      void broadcastState(get(), true);
+      return;
+    }
+
+    // If custom text provided, use it directly (skips ask phase or resolves it)
     if (customText) {
       set({
         challengeType: chosenType,
@@ -488,9 +503,42 @@ export const useGameStore = create<GameState>()((set, get) => ({
   pickTruth: () => get().pickChallenge("truth"),
   pickDare: () => get().pickChallenge("dare"),
 
+  confirmPrompt: (text?: string) => {
+    const { challengeType, customTruths, customDares, roomCustomPrompts, timerEnabled, dareTimeLimit, vibe } = get();
+    
+    let prompt = text;
+    if (!prompt) {
+      const allDefaults = challengeType === "truth" ? DEFAULT_TRUTHS : DEFAULT_DARES;
+      let filteredDefaults = allDefaults;
+      if (vibe && vibe !== "classic") {
+        filteredDefaults = allDefaults.filter((d: any) => d.category === vibe);
+        if (filteredDefaults.length === 0) filteredDefaults = allDefaults;
+      }
+      const locals = challengeType === "truth" ? customTruths : customDares;
+      const rooms = roomCustomPrompts.filter((c: any) => c.type === challengeType);
+
+      const pool = [
+        ...filteredDefaults.map((t: any) => t.text),
+        ...locals.filter((c: any) => c.type === challengeType).map((c: any) => c.text),
+        ...rooms.map((c: any) => c.text),
+      ];
+      prompt = pickRandom(pool);
+    }
+
+    set({
+      currentPrompt: prompt,
+      phase: "revealed",
+      timerSeconds: challengeType === "dare" && timerEnabled ? dareTimeLimit : 0,
+    });
+    
+    if (challengeType === "truth") {
+      get().resetTimer();
+    }
+    void broadcastState(get(), true);
+  },
+
   completeChallenge: () => {
-    const ct = get().challengeType;
-    const { players, currentTurnIndex, selectedPlayerId } = get();
+    const { players, currentTurnIndex, selectedPlayerId, challengeType: ct } = get();
     
     // Lock the next spin to the person who just completed the challenge
     const selectedIndex = players.findIndex(p => p.id === selectedPlayerId);

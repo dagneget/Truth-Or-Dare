@@ -74,22 +74,23 @@ export function LiveCam({ roomCode, onClose, isStreaming, playerName }: DareCamP
       });
       roomRef.current = room;
 
-      // Create local video track first
-      const videoTrack = await createLocalVideoTrack({
-        facingMode: "user",
-      });
-      localTracksRef.current.video = videoTrack;
-      
-      // Create local audio track
-      const audioTrack = await createLocalAudioTrack({
-        echoCancellation: true,
-        noiseSuppression: true,
-      });
-      localTracksRef.current.audio = audioTrack;
+      // Create local tracks ONLY if we are streaming
+      if (isStreaming) {
+        const videoTrack = await createLocalVideoTrack({
+          facingMode: "user",
+        });
+        localTracksRef.current.video = videoTrack;
+        
+        const audioTrack = await createLocalAudioTrack({
+          echoCancellation: true,
+          noiseSuppression: true,
+        });
+        localTracksRef.current.audio = audioTrack;
 
-      // Attach video to element
-      if (videoRef.current) {
-        videoTrack.attach(videoRef.current);
+        // Attach video to element
+        if (videoRef.current) {
+          videoTrack.attach(videoRef.current);
+        }
       }
 
       await room.connect(serverUrl, token);
@@ -99,11 +100,13 @@ export function LiveCam({ roomCode, onClose, isStreaming, playerName }: DareCamP
         return;
       }
 
-      // Publish the local tracks
-      await room.localParticipant.publishTrack(videoTrack);
-      await room.localParticipant.publishTrack(audioTrack);
+      // Publish the local tracks if streaming
+      if (isStreaming) {
+        if (localTracksRef.current.video) await room.localParticipant.publishTrack(localTracksRef.current.video);
+        if (localTracksRef.current.audio) await room.localParticipant.publishTrack(localTracksRef.current.audio);
+      }
       
-      // Video and audio start ON
+      // Video and audio start ON (for viewing or streaming)
       setIsVideoOff(false);
       setIsMuted(false);
       setIsLoading(false);
@@ -124,8 +127,13 @@ export function LiveCam({ roomCode, onClose, isStreaming, playerName }: DareCamP
 
       // Handle remote tracks
       room.on("trackSubscribed", (track) => {
-        if (track.kind === "video" && videoRef.current && isVideoOff) {
+        if (track.kind === "video" && videoRef.current) {
           track.attach(videoRef.current);
+          setIsVideoOff(false);
+        } else if (track.kind === "audio") {
+          // LiveKit remote audio tracks need an element to play through
+          const el = track.attach();
+          document.body.appendChild(el);
         }
       });
 
@@ -263,24 +271,28 @@ export function LiveCam({ roomCode, onClose, isStreaming, playerName }: DareCamP
       </div>
 
       <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-black/60 px-3 py-2 backdrop-blur-sm">
-        <button
-          onClick={toggleMute}
-          className={`rounded-full p-2 transition-colors ${
-            isMuted ? "bg-red-500 text-white" : "bg-green-500 text-white"
-          }`}
-          title={isMuted ? "Unmute" : "Mute"}
-        >
-          {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-        </button>
-        <button
-          onClick={toggleVideo}
-          className={`rounded-full p-2 transition-colors ${
-            isVideoOff ? "bg-red-500 text-white" : "bg-green-500 text-white"
-          }`}
-          title={isVideoOff ? "Turn on video" : "Turn off video"}
-        >
-          {isVideoOff ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
-        </button>
+        {isStreaming && (
+          <>
+            <button
+              onClick={toggleMute}
+              className={`rounded-full p-2 transition-colors ${
+                isMuted ? "bg-red-500 text-white" : "bg-green-500 text-white"
+              }`}
+              title={isMuted ? "Unmute" : "Mute"}
+            >
+              {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={toggleVideo}
+              className={`rounded-full p-2 transition-colors ${
+                isVideoOff ? "bg-red-500 text-white" : "bg-green-500 text-white"
+              }`}
+              title={isVideoOff ? "Turn on video" : "Turn off video"}
+            >
+              {isVideoOff ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+            </button>
+          </>
+        )}
         <button
           onClick={handleClose}
           className="rounded-full bg-red-500 p-2 text-white hover:bg-red-600"

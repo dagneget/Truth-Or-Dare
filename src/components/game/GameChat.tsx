@@ -11,6 +11,8 @@ export function GameChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [text, setText] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [toastMessage, setToastMessage] = useState<ChatMessage | null>(null);
+  
   const roomCode = useGameStore((s) => s.roomCode);
   const selfId = useGameStore((s) => s.selfId);
   const players = useGameStore((s) => s.players);
@@ -24,15 +26,22 @@ export function GameChat() {
     const sortedMsgs = [...msgs].sort((a, b) => {
       const dateA = a.created_at || a.createdAt || 0;
       const dateB = b.created_at || b.createdAt || 0;
-      return new Date(dateB).getTime() - new Date(dateA).getTime();
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
     });
     setMessages(sortedMsgs);
     
-    // Only mark as unread if chat is closed
+    // Only mark as unread and show toast if chat is closed
     if (!isOpen && msgs.length > 0) {
       setChatUnread(true);
+      
+      // Show toast for the latest message if it's not from me
+      const latest = sortedMsgs[sortedMsgs.length - 1];
+      if (latest && latest.uid !== selfId) {
+        setToastMessage(latest);
+        setTimeout(() => setToastMessage(null), 5000);
+      }
     }
-  }, [isOpen, setChatUnread]);
+  }, [isOpen, setChatUnread, selfId]);
 
   useEffect(() => {
     if (!roomCode) return () => {};
@@ -71,6 +80,27 @@ export function GameChat() {
           <div className="absolute -right-1 -top-1 h-4 w-4 animate-bounce rounded-full bg-[var(--neon-pink)] shadow-[0_0_8px_var(--neon-pink)]" />
         )}
       </button>
+
+      {/* Floating Toast Notification */}
+      <AnimatePresence>
+        {!isOpen && toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, x: -20, scale: 0.9 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -20, scale: 0.9 }}
+            className="fixed bottom-24 left-20 z-40 max-w-[200px] rounded-2xl border border-[var(--neon-purple)]/30 bg-[#0a0a0a]/90 px-4 py-3 shadow-[0_0_20px_rgba(194,101,255,0.3)] backdrop-blur-xl"
+          >
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--neon-purple)]">
+                {toastMessage.name}
+              </span>
+              <span className="text-sm text-white/90 line-clamp-2">
+                {toastMessage.text}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Chat Panel */}
       <AnimatePresence>

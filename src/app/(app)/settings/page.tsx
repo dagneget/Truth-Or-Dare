@@ -21,12 +21,17 @@ export default function SettingsPage() {
   const [loadingPush, setLoadingPush] = useState(false);
 
   useEffect(() => {
-    if (isSupported) {
-      checkSubscription().then(sub => setPushEnabled(!!sub));
+    if (isSupported && checkSubscription) {
+      checkSubscription().then(sub => setPushEnabled(!!sub)).catch(() => {});
     }
-  }, [isSupported, checkSubscription]);
+  }, [isSupported]);
 
   const handlePushToggle = async () => {
+    if (!isSupported) {
+      alert("Push notifications are not supported in your browser");
+      return;
+    }
+    
     setLoadingPush(true);
     try {
       if (pushEnabled) {
@@ -35,6 +40,8 @@ export default function SettingsPage() {
         const sub = await subscribeToPush();
         setPushEnabled(!!sub);
       }
+    } catch (err) {
+      console.error("Push toggle error:", err);
     } finally {
       setLoadingPush(false);
     }
@@ -113,8 +120,8 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={handlePushToggle}
-            disabled={loadingPush}
-            className={`relative h-8 w-14 rounded-full transition ${pushEnabled ? "bg-[var(--neon-cyan)]" : "bg-white/20"}`}
+            disabled={loadingPush || !isSupported}
+            className={`relative h-8 w-14 rounded-full transition ${pushEnabled ? "bg-[var(--neon-cyan)]" : "bg-white/20"} ${loadingPush ? "opacity-50" : ""}`}
           >
             <span
               className={`absolute top-1 h-6 w-6 rounded-full bg-black transition ${pushEnabled ? "left-7" : "left-1"}`}
