@@ -69,6 +69,17 @@ export default function PlayPage() {
   const submittedAnswers = useGameStore((s) => s.submittedAnswers);
   const submitAnswer = useGameStore((s) => s.submitAnswer);
   const nextTurn = useGameStore((s) => s.nextTurn);
+  const setPendingAnswer = useGameStore((s) => s.setPendingAnswer);
+
+  // Auto-dismiss truth answer popup
+  useEffect(() => {
+    if (pendingAnswer) {
+      const timer = setTimeout(() => {
+        setPendingAnswer(null);
+      }, 7000); // 7 seconds before it disappears
+      return () => clearTimeout(timer);
+    }
+  }, [pendingAnswer, setPendingAnswer]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !roomCode) return;
@@ -647,6 +658,35 @@ export default function PlayPage() {
           <ReactionPicker />
         </div>
       </div>
+
+      {/* Truth Answer Popup */}
+      <AnimatePresence>
+        {pendingAnswer && (
+          <motion.div
+            initial={{ opacity: 0, y: -100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -100 }}
+            className="fixed top-8 left-4 right-4 z-[110] mx-auto max-w-md rounded-2xl border border-[var(--neon-cyan)]/50 bg-[#121212]/95 p-5 shadow-[0_0_40px_rgba(0,251,251,0.4)] backdrop-blur-xl"
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--neon-cyan)]/20 text-2xl shadow-[0_0_15px_rgba(0,251,251,0.3)]">
+                💬
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--neon-cyan)]">
+                  Truth Revealed
+                </p>
+                <p className="mt-1 text-sm font-semibold text-white/70 truncate">
+                  &quot;{currentPrompt}&quot;
+                </p>
+                <p className="mt-2 text-base font-bold text-[var(--neon-cyan)]">
+                  {pendingAnswer}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <FloatingReactions />
       <Leaderboard isOpen={isLeaderboardOpen} onClose={() => setIsLeaderboardOpen(false)} />

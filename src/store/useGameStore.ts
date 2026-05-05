@@ -490,8 +490,11 @@ export const useGameStore = create<GameState>()((set, get) => ({
 
   completeChallenge: () => {
     const ct = get().challengeType;
-    const { players, currentTurnIndex } = get();
-    const nextIndex = (currentTurnIndex + 1) % players.length;
+    const { players, currentTurnIndex, selectedPlayerId } = get();
+    
+    // Lock the next spin to the person who just completed the challenge
+    const selectedIndex = players.findIndex(p => p.id === selectedPlayerId);
+    const nextIndex = selectedIndex !== -1 ? selectedIndex : ((currentTurnIndex + 1) % players.length);
     
     set((s: GameState) => {
       const isDare = ct === "dare";
@@ -564,8 +567,11 @@ export const useGameStore = create<GameState>()((set, get) => ({
   },
 
   confirmPunishmentDone: () => {
-    const { players, currentTurnIndex } = get();
-    const nextIndex = (currentTurnIndex + 1) % players.length;
+    const { players, currentTurnIndex, selectedPlayerId } = get();
+    
+    // Lock the next spin to the person who just completed the punishment
+    const selectedIndex = players.findIndex(p => p.id === selectedPlayerId);
+    const nextIndex = selectedIndex !== -1 ? selectedIndex : ((currentTurnIndex + 1) % players.length);
     
     set((s: GameState) => ({
       phase: "idle" as const,
