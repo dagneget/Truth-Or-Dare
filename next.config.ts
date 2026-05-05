@@ -7,15 +7,18 @@ const withPWA = withPWAInit({
   register: true,
 });
 
-
 const nextConfig: NextConfig = {
-  /* config options here */
   turbopack: {},
+  experimental: {
+    optimizeCss: true,
+  },
+  poweredByHeader: false,
+  reactStrictMode: true,
+  compress: true,
+  images: {
+    formats: ["image/avif", "image/webp"],
+  },
 };
-
-
-
-
 
 export default withPWA(nextConfig);
 

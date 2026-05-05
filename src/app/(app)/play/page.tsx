@@ -14,7 +14,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { useGameSounds } from "@/hooks/useGameSounds";
 import confetti from "canvas-confetti";
 
-import { DareCam } from "@/components/game/DareCam";
+import { LiveCam } from "@/components/game/LiveCam";
 import { GameChat } from "@/components/game/GameChat";
 import { sendMessage } from "@/lib/supabase/rooms";
 import { cn } from "@/lib/utils";
@@ -465,7 +465,7 @@ export default function PlayPage() {
 
       <AnimatePresence>
         {roomCode && dareCamActive && (
-          <DareCam 
+          <LiveCam 
             roomCode={roomCode} 
             playerName={selectedName || "Player"} 
             isStreaming={isMyTurn}

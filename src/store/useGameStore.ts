@@ -252,14 +252,29 @@ export const useGameStore = create<GameState>()((set, get) => ({
   setVote: (vote: "pass" | "fail") => {
     const { selfId, votes } = get();
     set({ votes: { ...votes, [selfId]: vote } });
-    void broadcastState(get());
+    void broadcastState(get(), true);
   },
 
   clearReactions: () => set({ reactions: [] }),
 
   startVoting: () => {
     set({ phase: "voting", votes: {} });
-    void broadcastState(get());
+    void broadcastState(get(), true);
+
+    // Notify others that it's time to vote
+    const { selfId, players, displayName } = get();
+    const otherIds = players.filter((p: Player) => p.id !== selfId).map((p: Player) => p.id);
+    if (otherIds.length > 0) {
+      fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userIds: otherIds,
+          title: "Time to vote! ⚖️",
+          body: `Did ${displayName} successfully complete their Dare?`,
+        })
+      }).catch(() => {});
+    }
   },
 
   resolveVoting: () => {
@@ -336,6 +351,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
     set((s: GameState) => ({
       players: s.players.map((p: Player) => (p.id === me ? { ...p, ready: !p.ready } : p)),
     }));
+    void broadcastState(get(), true);
   },
 
   startGame: () => {
@@ -353,7 +369,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
       currentPrompt: null,
       stats: { ...s.stats, gamesPlayed: s.stats.gamesPlayed + 1 },
     }));
-    void broadcastState(get());
+    void broadcastState(get(), true);
   },
 
   spinBottle: () => {
@@ -375,6 +391,19 @@ export const useGameStore = create<GameState>()((set, get) => ({
       currentPrompt: null,
     });
 
+    const targetId = players[winnerIndex]!.id;
+    if (targetId !== get().selfId) {
+      fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: targetId,
+          title: "It's your turn! 🎯",
+          body: "The bottle landed on you. Pick Truth or Dare!",
+        })
+      }).catch(console.error);
+    }
+
     void broadcastState(get(), true);
 
     window.setTimeout(() => {
@@ -382,7 +411,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
         phase: "choose",
         timerSeconds: 10,
       });
-      void broadcastState(get());
+      void broadcastState(get(), true);
     }, 3200);
   },
 
@@ -427,7 +456,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
       get().resetTimer();
     }
 
-    void broadcastState(get());
+    void broadcastState(get(), true);
   },
 
   pickTruth: () => get().pickChallenge("truth"),
@@ -461,7 +490,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
         ),
       };
     });
-    void broadcastState(get());
+    void broadcastState(get(), true);
   },
 
   refuseChallenge: () => {
@@ -475,17 +504,32 @@ export const useGameStore = create<GameState>()((set, get) => ({
         currentStreak: 0,
       },
     }));
-    void broadcastState(get());
+    void broadcastState(get(), true);
+
+    // Notify others that someone chickened out
+    const { selfId, players, displayName } = get();
+    const otherIds = players.filter((p: Player) => p.id !== selfId).map((p: Player) => p.id);
+    if (otherIds.length > 0) {
+      fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userIds: otherIds,
+          title: "Bawk Bawk! 🐔",
+          body: `${displayName} chickened out of their challenge!`,
+        })
+      }).catch(() => {});
+    }
   },
 
   setPunishment: (text: string) => {
     set({ punishmentText: text });
-    void broadcastState(get());
+    void broadcastState(get(), true);
   },
 
   randomPunishment: () => {
     set({ punishmentText: pickRandom(DEFAULT_PUNISHMENTS) });
-    void broadcastState(get());
+    void broadcastState(get(), true);
   },
 
   confirmPunishmentDone: () => {
@@ -500,7 +544,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
         punishmentsReceived: s.stats.punishmentsReceived + 1,
       },
     }));
-    void broadcastState(get());
+    void broadcastState(get(), true);
   },
 
   addCustomPrompt: (p: any) => {

@@ -4,8 +4,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Pencil, Check, Trophy, Brain, Flame, Shield, Skull, Zap, TrendingUp } from "lucide-react";
 import { useGameStore, AVATAR_EMOJIS, AVATAR_COLORS } from "@/store/useGameStore";
-import { isFirebaseConfigured } from "@/lib/firebase/client";
-import { signInAsGuest, signInWithGoogle, signOutFirebase } from "@/lib/firebase/auth";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { signInAsGuest, signInWithGoogle, signOut } from "@/lib/supabase/auth";
 import { useAuthStore } from "@/store/useAuthStore";
 import { LogIn, LogOut, Sparkles, UserCircle2 } from "lucide-react";
 
@@ -58,7 +58,7 @@ export default function ProfilePage() {
   async function onSignOut() {
     setAuthError(null);
     setAuthBusy(true);
-    try { await signOutFirebase(); } catch (e) { setAuthError(e instanceof Error ? e.message : "Sign out failed"); } finally { setAuthBusy(false); }
+    try { await signOut(); } catch (e) { setAuthError(e instanceof Error ? e.message : "Sign out failed"); } finally { setAuthBusy(false); }
   }
 
   return (
@@ -229,9 +229,9 @@ export default function ProfilePage() {
       {/* Account Section */}
       <div className="glass-panel mt-8 rounded-2xl p-4">
         <p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Account</p>
-        {!isFirebaseConfigured ? (
+        {!isSupabaseConfigured ? (
           <p className="mt-2 text-sm text-white/85">
-            Add Firebase keys in <code className="text-[var(--neon-cyan)]">.env.local</code> to enable
+            Add Supabase keys in <code className="text-[var(--neon-cyan)]">.env.local</code> to enable
             Google sign-in and guest accounts.
           </p>
         ) : !authReady ? (

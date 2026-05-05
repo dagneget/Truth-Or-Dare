@@ -250,6 +250,20 @@ export async function sendMessage(roomCode: string, uid: string, name: string, t
 export function subscribeChat(roomCode: string, cb: (messages: any[]) => void) {
   if (!supabase || !roomCode) return () => {};
   
+  let currentMessages: any[] = [];
+  
+  const updateMessages = (newMessages: any[]) => {
+    const map = new Map();
+    currentMessages.forEach(m => map.set(m.id || (m.uid + m.created_at), m));
+    newMessages.forEach(m => map.set(m.id || (m.uid + m.created_at), m));
+    
+    currentMessages = Array.from(map.values())
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 50);
+      
+    cb(currentMessages);
+  };
+
   const channel = supabase.channel(`chat:${roomCode}`)
     .on(
       "postgres_changes",
@@ -261,14 +275,11 @@ export function subscribeChat(roomCode: string, cb: (messages: any[]) => void) {
           .eq("room_code", roomCode)
           .order("created_at", { ascending: false })
           .limit(50);
-        if (data) cb(data);
+        if (data) updateMessages(data);
       }
     )
-    .on("broadcast", { event: "chat_message" }, (payload) => {
-      // Fetch fresh to keep consistency or just append
-      // For now, we'll let the postgres_change handle the definitive list
-      // but the broadcast can trigger an immediate re-fetch
-      console.log("Chat broadcast received:", payload);
+    .on("broadcast", { event: "chat_message" }, ({ payload }) => {
+      updateMessages([payload]);
     })
     .subscribe();
 
@@ -280,7 +291,7 @@ export function subscribeChat(roomCode: string, cb: (messages: any[]) => void) {
     .order("created_at", { ascending: false })
     .limit(50)
     .then(({ data }) => {
-      if (data) cb(data);
+      if (data) updateMessages(data);
     });
 
   return () => {

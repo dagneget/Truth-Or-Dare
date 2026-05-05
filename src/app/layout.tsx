@@ -6,12 +6,14 @@ const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+  preload: true,
 });
 
 const splineSans = Spline_Sans({
   variable: "--font-spline",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
+  preload: true,
 });
 
 export const metadata: Metadata = {
@@ -19,6 +21,18 @@ export const metadata: Metadata = {
   description: "The ultimate party game. Real-time rooms, bottle spin, truths & dares.",
   manifest: "/manifest.json",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Truth or Dare" },
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SUPABASE_URL?.replace("https://", "https://") || "https://truthdare.app"),
+  openGraph: {
+    title: "Truth or Dare — Party",
+    description: "The ultimate party game. Real-time rooms, bottle spin, truths & dares.",
+    type: "website",
+    images: ["/icons/icon-512x512.png"],
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {
@@ -27,6 +41,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
 };
 
 import Script from "next/script";
@@ -36,11 +51,18 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+
   return (
     <html lang="en" className={`${spaceGrotesk.variable} ${splineSans.variable} h-full`}>
+      <head>
+        <link rel="preconnect" href={supabaseUrl} />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="dns-prefetch" href={supabaseUrl} />
+      </head>
       <body className="min-h-dvh antialiased">
         {children}
-        {/* Force clear any stale PWA service workers that might be caching old broken code */}
         <Script
           id="clear-sw"
           strategy="afterInteractive"
