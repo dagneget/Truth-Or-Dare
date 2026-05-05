@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { useGameStore } from "@/store/useGameStore";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useState, useEffect } from "react";
+import { Bell, BellOff } from "lucide-react";
 
 const DURATIONS = [15, 30, 60, 90];
 
@@ -12,6 +15,30 @@ export default function SettingsPage() {
   const dareTimeLimit = useGameStore((s) => s.dareTimeLimit);
   const setDareTimeLimit = useGameStore((s) => s.setDareTimeLimit);
   const leaveRoom = useGameStore((s) => s.leaveRoom);
+  
+  const { requestPermission, subscribeToPush, checkSubscription, isSupported } = usePushNotifications();
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [loadingPush, setLoadingPush] = useState(false);
+
+  useEffect(() => {
+    if (isSupported) {
+      checkSubscription().then(sub => setPushEnabled(!!sub));
+    }
+  }, [isSupported, checkSubscription]);
+
+  const handlePushToggle = async () => {
+    setLoadingPush(true);
+    try {
+      if (pushEnabled) {
+        setPushEnabled(false);
+      } else {
+        const sub = await subscribeToPush();
+        setPushEnabled(!!sub);
+      }
+    } finally {
+      setLoadingPush(false);
+    }
+  };
 
   return (
     <div className="pb-8 pt-4">
@@ -67,6 +94,34 @@ export default function SettingsPage() {
             : "Add NEXT_PUBLIC_SUPABASE_* keys in `.env.local` to enable sign-in and live multiplayer rooms. Local play works without them."}
         </p>
       </div>
+
+      {isSupported && (
+        <div className="mt-6 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+          <div className="flex items-center gap-3">
+            {pushEnabled ? (
+              <Bell className="h-5 w-5 text-[var(--neon-cyan)]" />
+            ) : (
+              <BellOff className="h-5 w-5 text-[var(--muted)]" />
+            )}
+            <div>
+              <p className="font-semibold text-white">Push Notifications</p>
+              <p className="text-xs text-[var(--muted)]">
+                {pushEnabled ? "You're all set!" : "Get notified when it's your turn"}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handlePushToggle}
+            disabled={loadingPush}
+            className={`relative h-8 w-14 rounded-full transition ${pushEnabled ? "bg-[var(--neon-cyan)]" : "bg-white/20"}`}
+          >
+            <span
+              className={`absolute top-1 h-6 w-6 rounded-full bg-black transition ${pushEnabled ? "left-7" : "left-1"}`}
+            />
+          </button>
+        </div>
+      )}
 
       <Link
         href="/custom"

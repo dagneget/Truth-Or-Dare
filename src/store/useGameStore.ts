@@ -58,6 +58,9 @@ type GameState = {
   dareTimeLimit: number;
   punishmentText: string | null;
   lastChallengeType: ChallengeType;
+  currentTurnIndex: number;
+  pendingAnswer: string | null;
+  submittedAnswers: Record<string, string>;
   avatarEmoji: string;
   avatarColor: string;
   stats: {
@@ -99,7 +102,7 @@ type GameState = {
   toggleReady: () => void;
   startGame: () => void;
   spinBottle: () => void;
-  pickChallenge: (type?: "truth" | "dare" | "random" | "alternating") => void;
+  pickChallenge: (type?: "truth" | "dare" | "random" | "alternating", customText?: string) => void;
   pickTruth: () => void;
   pickDare: () => void;
   completeChallenge: () => void;
@@ -118,6 +121,10 @@ type GameState = {
   setChatUnread: (v: boolean) => void;
   syncFromRemote: (state: Partial<GameState>) => void;
   setDareCamActive: (active: boolean) => void;
+  setCurrentTurnIndex: (index: number) => void;
+  submitAnswer: (answer: string) => void;
+  setPendingAnswer: (answer: string | null) => void;
+  nextTurn: () => void;
   setGameStarted: (started: boolean) => void;
   receiveReaction: (reaction: { id: string, emoji: string, senderId?: string, x?: number }) => void;
   receiveChatMessage: (msg: { uid: string, name: string, content: string, created_at: string }) => void;
@@ -213,6 +220,9 @@ export const useGameStore = create<GameState>()((set, get) => ({
   votes: {},
   reactions: [],
   broadcastChannel: null,
+  currentTurnIndex: 0,
+  pendingAnswer: null,
+  submittedAnswers: {},
   setBroadcastChannel: (channel: any) => set({ broadcastChannel: channel }),
   setGameStarted: (started: boolean) => set({ gameStarted: started }),
 
@@ -415,7 +425,7 @@ export const useGameStore = create<GameState>()((set, get) => ({
     }, 3200);
   },
 
-  pickChallenge: (type?: "truth" | "dare" | "random" | "alternating") => {
+  pickChallenge: (type?: "truth" | "dare" | "random" | "alternating", customText?: string) => {
     const { customTruths, customDares, roomCustomPrompts, lastChallengeType, timerEnabled, dareTimeLimit, vibe } = get();
 
     let chosenType: "truth" | "dare";
@@ -425,6 +435,22 @@ export const useGameStore = create<GameState>()((set, get) => ({
       chosenType = lastChallengeType === "truth" ? "dare" : "truth";
     } else {
       chosenType = Math.random() > 0.5 ? "truth" : "dare";
+    }
+
+    // If custom text provided, use it directly
+    if (customText) {
+      set({
+        challengeType: chosenType,
+        currentPrompt: customText,
+        phase: "revealed",
+        lastChallengeType: chosenType,
+        timerSeconds: chosenType === "dare" && timerEnabled ? dareTimeLimit : 0,
+      });
+      if (chosenType === "truth") {
+        get().resetTimer();
+      }
+      void broadcastState(get(), true);
+      return;
     }
 
     const allDefaults = chosenType === "truth" ? DEFAULT_TRUTHS : DEFAULT_DARES;
@@ -464,6 +490,9 @@ export const useGameStore = create<GameState>()((set, get) => ({
 
   completeChallenge: () => {
     const ct = get().challengeType;
+    const { players, currentTurnIndex } = get();
+    const nextIndex = (currentTurnIndex + 1) % players.length;
+    
     set((s: GameState) => {
       const isDare = ct === "dare";
       const newStreak = s.stats.currentStreak + 1;
@@ -476,6 +505,8 @@ export const useGameStore = create<GameState>()((set, get) => ({
         selectedPlayerId: null,
         timerSeconds: 0,
         dareCamActive: false,
+        currentTurnIndex: nextIndex,
+        pendingAnswer: null,
         stats: {
           ...s.stats,
           truthsAnswered: s.stats.truthsAnswered + (ct === "truth" ? 1 : 0),
@@ -533,12 +564,17 @@ export const useGameStore = create<GameState>()((set, get) => ({
   },
 
   confirmPunishmentDone: () => {
+    const { players, currentTurnIndex } = get();
+    const nextIndex = (currentTurnIndex + 1) % players.length;
+    
     set((s: GameState) => ({
       phase: "idle" as const,
       punishmentText: null,
       challengeType: null,
       currentPrompt: null,
       selectedPlayerId: null,
+      currentTurnIndex: nextIndex,
+      pendingAnswer: null,
       stats: {
         ...s.stats,
         punishmentsReceived: s.stats.punishmentsReceived + 1,
@@ -569,6 +605,24 @@ export const useGameStore = create<GameState>()((set, get) => ({
   setAvatarEmoji: (emoji: string) => set({ avatarEmoji: emoji }),
   setAvatarColor: (color: string) => set({ avatarColor: color }),
   setDareCamActive: (active: boolean) => set({ dareCamActive: active }),
+  setCurrentTurnIndex: (index: number) => set({ currentTurnIndex: index }),
+  submitAnswer: (answer: string) => {
+    const { selfId, selectedPlayerId, currentPrompt } = get();
+    if (selfId !== selectedPlayerId || !currentPrompt) return;
+    set((s: GameState) => ({
+      pendingAnswer: answer,
+      submittedAnswers: { ...s.submittedAnswers, [selfId]: answer },
+    }));
+    void broadcastState(get(), true);
+  },
+  setPendingAnswer: (answer: string | null) => set({ pendingAnswer: answer }),
+  nextTurn: () => {
+    const { players, currentTurnIndex } = get();
+    if (players.length === 0) return;
+    const nextIndex = (currentTurnIndex + 1) % players.length;
+    set({ currentTurnIndex: nextIndex });
+    void broadcastState(get(), true);
+  },
 
   tickTimer: () =>
     set((s: GameState) => {
@@ -627,6 +681,15 @@ export const useGameStore = create<GameState>()((set, get) => ({
     }
     if (remoteState.votes !== undefined && JSON.stringify(remoteState.votes) !== JSON.stringify(current.votes)) {
       updates.votes = remoteState.votes;
+    }
+    if (remoteState.currentTurnIndex !== undefined) {
+      updates.currentTurnIndex = remoteState.currentTurnIndex;
+    }
+    if (remoteState.pendingAnswer !== undefined) {
+      updates.pendingAnswer = remoteState.pendingAnswer;
+    }
+    if (remoteState.submittedAnswers !== undefined) {
+      updates.submittedAnswers = remoteState.submittedAnswers;
     }
 
     if (Object.keys(updates).length > 0) {

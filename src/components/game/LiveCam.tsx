@@ -7,6 +7,8 @@ import {
   Room,
   LocalAudioTrack,
   LocalVideoTrack,
+  createLocalAudioTrack,
+  createLocalVideoTrack,
 } from "livekit-client";
 
 interface DareCamProps {
@@ -18,8 +20,8 @@ interface DareCamProps {
 
 export function LiveCam({ roomCode, onClose, isStreaming, playerName }: DareCamProps) {
   const [isMaximized, setIsMaximized] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
-  const [isVideoOff, setIsVideoOff] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [participants, setParticipants] = useState<number>(1);
   const [error, setError] = useState<string | null>(null);
@@ -51,16 +53,44 @@ export function LiveCam({ roomCode, onClose, isStreaming, playerName }: DareCamP
         }),
       });
 
-      if (!res.ok) {
-        throw new Error("Failed to get token");
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to get token");
       }
 
-      const { token, serverUrl } = await res.json();
+      const { token, serverUrl } = data;
 
       if (!mountedRef.current) return;
 
-      const room = new Room();
+      const room = new Room({
+        audioCaptureDefaults: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+        videoCaptureDefaults: {
+          facingMode: "user",
+        },
+      });
       roomRef.current = room;
+
+      // Create local video track first
+      const videoTrack = await createLocalVideoTrack({
+        facingMode: "user",
+      });
+      localTracksRef.current.video = videoTrack;
+      
+      // Create local audio track
+      const audioTrack = await createLocalAudioTrack({
+        echoCancellation: true,
+        noiseSuppression: true,
+      });
+      localTracksRef.current.audio = audioTrack;
+
+      // Attach video to element
+      if (videoRef.current) {
+        videoTrack.attach(videoRef.current);
+      }
 
       await room.connect(serverUrl, token);
 
@@ -69,6 +99,13 @@ export function LiveCam({ roomCode, onClose, isStreaming, playerName }: DareCamP
         return;
       }
 
+      // Publish the local tracks
+      await room.localParticipant.publishTrack(videoTrack);
+      await room.localParticipant.publishTrack(audioTrack);
+      
+      // Video and audio start ON
+      setIsVideoOff(false);
+      setIsMuted(false);
       setIsLoading(false);
 
       room.on("participantConnected", () => {
@@ -85,25 +122,17 @@ export function LiveCam({ roomCode, onClose, isStreaming, playerName }: DareCamP
 
       setParticipants(room.numParticipants + 1);
 
-      room.localParticipant.on("trackPublished", (publication) => {
-        if (!publication.track) return;
-        if (publication.track.kind === "audio") {
-          localTracksRef.current.audio = publication.track as unknown as LocalAudioTrack;
-        }
-        if (publication.track.kind === "video") {
-          localTracksRef.current.video = publication.track as unknown as LocalVideoTrack;
-          if (mountedRef.current && videoRef.current) {
-            publication.track.attach(videoRef.current);
-          }
+      // Handle remote tracks
+      room.on("trackSubscribed", (track) => {
+        if (track.kind === "video" && videoRef.current && isVideoOff) {
+          track.attach(videoRef.current);
         }
       });
 
     } catch (err) {
       console.error("LiveKit connection error:", err);
-      if (mountedRef.current) {
-        setError("Could not connect to video");
-        setIsLoading(false);
-      }
+      setError(err instanceof Error ? err.message : "Could not connect to video");
+      setIsLoading(false);
     }
   };
 
@@ -113,6 +142,8 @@ export function LiveCam({ roomCode, onClose, isStreaming, playerName }: DareCamP
 
     return () => {
       mountedRef.current = false;
+      localTracksRef.current.audio?.stop();
+      localTracksRef.current.video?.stop();
       if (roomRef.current) {
         roomRef.current.disconnect();
         roomRef.current = null;
@@ -144,9 +175,11 @@ export function LiveCam({ roomCode, onClose, isStreaming, playerName }: DareCamP
     }
   };
 
-  const handleClose = () => {
+  const handleClose = async () => {
+    localTracksRef.current.audio?.stop();
+    localTracksRef.current.video?.stop();
     if (roomRef.current) {
-      roomRef.current.disconnect();
+      await roomRef.current.disconnect();
       roomRef.current = null;
     }
     onClose();
@@ -233,7 +266,7 @@ export function LiveCam({ roomCode, onClose, isStreaming, playerName }: DareCamP
         <button
           onClick={toggleMute}
           className={`rounded-full p-2 transition-colors ${
-            isMuted ? "bg-red-500 text-white" : "bg-white/10 text-white/70 hover:bg-white/20"
+            isMuted ? "bg-red-500 text-white" : "bg-green-500 text-white"
           }`}
           title={isMuted ? "Unmute" : "Mute"}
         >
@@ -242,7 +275,7 @@ export function LiveCam({ roomCode, onClose, isStreaming, playerName }: DareCamP
         <button
           onClick={toggleVideo}
           className={`rounded-full p-2 transition-colors ${
-            isVideoOff ? "bg-red-500 text-white" : "bg-white/10 text-white/70 hover:bg-white/20"
+            isVideoOff ? "bg-red-500 text-white" : "bg-green-500 text-white"
           }`}
           title={isVideoOff ? "Turn on video" : "Turn off video"}
         >

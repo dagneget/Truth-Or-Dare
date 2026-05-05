@@ -34,7 +34,8 @@ export type ChatMessage = {
   uid: string;
   name: string;
   text: string;
-  createdAt: string | number;
+  createdAt?: string | number;
+  created_at?: string | number;
 };
 
 export type PlayerDoc = {

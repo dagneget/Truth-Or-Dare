@@ -36,7 +36,7 @@ export default function PlayPage() {
 
   const phase = useGameStore((s) => s.phase);
   const spinBottle = useGameStore((s) => s.spinBottle);
-  const pickChallenge = useGameStore((s) => s.pickChallenge);
+  const pickChallenge = useGameStore((s) => s.pickChallenge as (type?: "truth" | "dare" | "random" | "alternating", customText?: string) => void);
   const completeChallenge = useGameStore((s) => s.completeChallenge);
   const refuseChallenge = useGameStore((s) => s.refuseChallenge);
   const currentPrompt = useGameStore((s) => s.currentPrompt);
@@ -60,6 +60,15 @@ export default function PlayPage() {
   const resolveVoting = useGameStore((s) => s.resolveVoting);
 
   const [truthAnswer, setTruthAnswer] = useState("");
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [customPromptType, setCustomPromptType] = useState<"truth" | "dare">("truth");
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [customPunishment, setCustomPunishment] = useState("");
+  const currentTurnIndex = useGameStore((s) => s.currentTurnIndex);
+  const pendingAnswer = useGameStore((s) => s.pendingAnswer);
+  const submittedAnswers = useGameStore((s) => s.submittedAnswers);
+  const submitAnswer = useGameStore((s) => s.submitAnswer);
+  const nextTurn = useGameStore((s) => s.nextTurn);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !roomCode) return;
@@ -139,6 +148,8 @@ export default function PlayPage() {
   const selectedName = players.find((p) => p.id === selectedPlayerId)?.name;
   const me = players.find((p) => p.id === selfId);
   const isMyTurn = selectedPlayerId === selfId;
+  const isCurrentTurn = players[currentTurnIndex]?.id === selfId;
+  const canSpin = phase === "idle" && gameStarted && isCurrentTurn;
   const isHost = me?.isHost ?? false;
   const canSelectChallenge = isMyTurn; // ONLY the active player can choose Truth or Dare
   const canAct = isMyTurn || isHost; // Host or active player can spin/complete
@@ -158,7 +169,6 @@ export default function PlayPage() {
     const ans = truthAnswer;
     setTruthAnswer("");
     
-    // Complete challenge locally first for instant feedback
     play("success");
     confetti({
       particleCount: 150,
@@ -167,11 +177,11 @@ export default function PlayPage() {
       colors: ["#00fbfb", "#c265ff", "#ffffff"],
     });
     
-    // Instead of completing, start the jury voting!
+    submitAnswer(ans);
+    
     startVoting();
     
-    // Send message to chat in the background
-    await sendMessage(roomCode, selfId, me.name, `📢 TRUTH ANSWER: ${ans}`);
+    await sendMessage(roomCode, selfId, me.name, `📢 ANSWERED "${currentPrompt}": ${ans}`);
   };
 
   return (
@@ -217,26 +227,86 @@ export default function PlayPage() {
 
       {/* Challenge selection - mode-aware */}
       {selectionMode === "choice" ? (
-        /* Players Choice mode: show both Truth and Dare buttons */
-        <div className="mt-8 grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            disabled={!showTruthDare || !canSelectChallenge}
-            onClick={() => pickChallenge("truth")}
-            className="glass-panel glow-border-cyan flex flex-col items-center gap-2 rounded-2xl py-5 font-[family-name:var(--font-space-grotesk)] text-sm font-bold uppercase tracking-wider text-[var(--neon-cyan)] disabled:opacity-40"
-          >
-            <Brain className="h-6 w-6" />
-            Truth
-          </button>
-          <button
-            type="button"
-            disabled={!showTruthDare || !canSelectChallenge}
-            onClick={() => pickChallenge("dare")}
-            className="flex flex-col items-center gap-2 rounded-2xl bg-gradient-to-br from-[var(--neon-pink)] to-[#b040a8] py-5 font-[family-name:var(--font-space-grotesk)] text-sm font-bold uppercase tracking-wider text-white shadow-[0_0_24px_rgba(255,65,175,0.4)] disabled:opacity-40"
-          >
-            <Flame className="h-6 w-6" />
-            Dare
-          </button>
+        /* Players Choice mode: show both Truth and Dare buttons + custom option */
+        <div className="mt-8 space-y-3">
+          {isCurrentTurn ? (
+            <button
+              type="button"
+              onClick={() => setShowCustomInput(!showCustomInput)}
+              className="w-full rounded-xl border border-[var(--neon-purple)]/30 bg-[var(--neon-purple)]/10 py-2 text-xs font-bold uppercase tracking-wider text-[var(--neon-purple)]"
+            >
+              {showCustomInput ? "Use Existing Questions" : "+ Write My Own Question"}
+            </button>
+          ) : null}
+
+          {showCustomInput && isCurrentTurn ? (
+            <div className="space-y-3 rounded-2xl border border-[var(--neon-purple)]/30 bg-[var(--neon-purple)]/5 p-4">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCustomPromptType("truth")}
+                  className={cn(
+                    "flex-1 rounded-lg py-2 text-xs font-bold uppercase",
+                    customPromptType === "truth" ? "bg-[var(--neon-cyan)] text-black" : "bg-white/10 text-white/50"
+                  )}
+                >
+                  Truth
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomPromptType("dare")}
+                  className={cn(
+                    "flex-1 rounded-lg py-2 text-xs font-bold uppercase",
+                    customPromptType === "dare" ? "bg-[var(--neon-pink)] text-white" : "bg-white/10 text-white/50"
+                  )}
+                >
+                  Dare
+                </button>
+              </div>
+              <textarea
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                placeholder={customPromptType === "truth" ? "Write your custom truth question..." : "Write your custom dare..."}
+                className="w-full rounded-xl border border-white/10 bg-black/50 p-3 text-sm text-white placeholder:text-white/30"
+                rows={2}
+              />
+              <button
+                type="button"
+                disabled={!customPrompt.trim()}
+                onClick={() => {
+                  if (customPrompt.trim()) {
+                    pickChallenge(customPromptType, customPrompt);
+                    setShowCustomInput(false);
+                    setCustomPrompt("");
+                  }
+                }}
+                className="w-full rounded-xl bg-[var(--neon-purple)] py-3 text-xs font-bold uppercase tracking-wider text-white disabled:opacity-40"
+              >
+                Use This Question
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={!showTruthDare || !canSelectChallenge}
+                onClick={() => pickChallenge("truth")}
+                className="glass-panel glow-border-cyan flex flex-col items-center gap-2 rounded-2xl py-5 font-[family-name:var(--font-space-grotesk)] text-sm font-bold uppercase tracking-wider text-[var(--neon-cyan)] disabled:opacity-40"
+              >
+                <Brain className="h-6 w-6" />
+                Truth
+              </button>
+              <button
+                type="button"
+                disabled={!showTruthDare || !canSelectChallenge}
+                onClick={() => pickChallenge("dare")}
+                className="flex flex-col items-center gap-2 rounded-2xl bg-gradient-to-br from-[var(--neon-pink)] to-[#b040a8] py-5 font-[family-name:var(--font-space-grotesk)] text-sm font-bold uppercase tracking-wider text-white shadow-[0_0_24px_rgba(255,65,175,0.4)] disabled:opacity-40"
+              >
+                <Flame className="h-6 w-6" />
+                Dare
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         /* Random or Alternating mode: single button */
@@ -260,7 +330,7 @@ export default function PlayPage() {
         </p>
       )}
 
-      {phase === "idle" && (
+      {phase === "idle" && canSpin && (
         <button
           type="button"
           onClick={() => {
@@ -269,7 +339,7 @@ export default function PlayPage() {
           }}
           className="mt-6 w-full rounded-2xl border border-[var(--neon-purple)]/50 bg-[var(--neon-purple)]/10 py-4 font-[family-name:var(--font-space-grotesk)] text-sm font-bold uppercase tracking-wider text-[var(--neon-purple)]"
         >
-          Continue to the Game
+          Spin the Bottle
         </button>
       )}
 
@@ -398,6 +468,16 @@ export default function PlayPage() {
 
             {phase === "voting" && (
               <div className="mt-8 space-y-6">
+                {/* Show the challenge to the jury */}
+                {currentPrompt && (
+                  <div className="rounded-xl border border-[var(--neon-pink)]/30 bg-[var(--neon-pink)]/5 p-4">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--neon-pink)]">
+                      {challengeType === "truth" ? "Truth" : "Dare"} Challenge
+                    </div>
+                    <p className="mt-2 text-lg font-bold text-white">{currentPrompt}</p>
+                  </div>
+                )}
+
                 <div className="text-center">
                   <p className="text-sm font-bold uppercase tracking-widest text-white/60">Audience Jury</p>
                   <h3 className="mt-1 text-lg font-black text-white">Did {selectedName} succeed?</h3>
@@ -499,6 +579,31 @@ export default function PlayPage() {
             </div>
 
             <p className="mt-6 text-center text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">
+              Select or write punishment:
+            </p>
+            
+            <textarea
+              value={customPunishment}
+              onChange={(e) => setCustomPunishment(e.target.value)}
+              placeholder="Write your own punishment..."
+              className="mt-3 w-full rounded-xl border border-[#ffb3ab]/30 bg-black/50 p-3 text-sm text-white placeholder:text-white/30"
+              rows={2}
+            />
+            
+            {customPunishment.trim() && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPunishment(customPunishment);
+                  setCustomPunishment("");
+                }}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#ffb3ab] py-3 text-xs font-bold uppercase tracking-wider text-[#2a1010]"
+              >
+                Use This Punishment
+              </button>
+            )}
+            
+            <p className="mt-4 text-center text-[10px] font-bold uppercase tracking-widest text-[var(--muted)]">
               Or choose from these:
             </p>
             <ul className="mt-3 flex flex-col gap-2">

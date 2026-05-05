@@ -5,14 +5,15 @@ export async function POST(req: Request) {
   try {
     const { roomName, userName, userId } = await req.json();
 
-    // Check env - can be set via LIVEKIT_API_KEY etc
     const apiKey = process.env.LIVEKIT_API_KEY;
     const apiSecret = process.env.LIVEKIT_API_SECRET;
     const serverUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
 
+    console.log("LiveKit env check:", { apiKey: apiKey ? "set" : "missing", apiSecret: apiSecret ? "set" : "missing", serverUrl });
+
     if (!apiKey || !apiSecret || !serverUrl) {
       return NextResponse.json(
-        { error: "LiveKit not configured" },
+        { error: "LiveKit not configured", env: { apiKey: !!apiKey, apiSecret: !!apiSecret, serverUrl: !!serverUrl } },
         { status: 500 }
       );
     }
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("LiveKit token error:", error);
     return NextResponse.json(
-      { error: "Failed to generate token" },
+      { error: "Failed to generate token", details: String(error) },
       { status: 500 }
     );
   }

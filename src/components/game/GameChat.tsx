@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, X, MessageSquare } from "lucide-react";
 import { sendMessage, subscribeChat } from "@/lib/supabase/rooms";
@@ -20,17 +20,26 @@ export function GameChat() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const me = players.find((p) => p.id === selfId);
 
-  useEffect(() => {
-    if (!roomCode) return;
-    const unsub = subscribeChat(roomCode, (msgs) => {
-      // Sort ascending for the feed
-      setMessages([...msgs].reverse());
-      if (!isOpen && msgs.length > 0) {
-        setChatUnread(true);
-      }
+  const handleNewMessages = useCallback((msgs: ChatMessage[]) => {
+    const sortedMsgs = [...msgs].sort((a, b) => {
+      const dateA = a.created_at || a.createdAt || 0;
+      const dateB = b.created_at || b.createdAt || 0;
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
     });
+    setMessages(sortedMsgs);
+    
+    // Only mark as unread if chat is closed
+    if (!isOpen && msgs.length > 0) {
+      setChatUnread(true);
+    }
+  }, [isOpen, setChatUnread]);
+
+  useEffect(() => {
+    if (!roomCode) return () => {};
+    
+    const unsub = subscribeChat(roomCode, handleNewMessages);
     return () => unsub();
-  }, [roomCode, isOpen, setChatUnread]);
+  }, [roomCode, handleNewMessages]);
 
   useEffect(() => {
     if (scrollRef.current) {

@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { useGameStore } from "@/store/useGameStore";
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
 
 export function usePushNotifications() {
+  const [isClient, setIsClient] = useState(false);
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
 
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   const requestPermission = useCallback(async function requestPermission(): Promise<NotificationPermission> {
-    if (!("Notification" in window)) {
+    if (!isClient || !("Notification" in window)) {
       return "denied";
     }
 
@@ -26,7 +31,7 @@ export function usePushNotifications() {
   }, []);
 
   const subscribeToPush = useCallback(async function subscribeToPush(): Promise<PushSubscription | null> {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    if (!isClient || !("serviceWorker" in navigator) || !("PushManager" in window)) {
       console.warn("Push notifications not supported");
       return null;
     }
@@ -89,19 +94,19 @@ export function usePushNotifications() {
   }, []);
 
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
+    if (!isClient || !("serviceWorker" in navigator)) return;
 
     navigator.serviceWorker.ready.then((registration) => {
       registrationRef.current = registration;
     });
-  }, []);
+  }, [isClient]);
 
   return {
     requestPermission,
     subscribeToPush,
     unsubscribeFromPush,
     checkSubscription,
-    isSupported: "PushManager" in window,
+    isSupported: isClient && "PushManager" in window,
   };
 }
 
